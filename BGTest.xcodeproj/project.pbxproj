@@ -11,6 +11,8 @@
 		A0AAACB72848B1C400E80154 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0AAACB62848B1C400E80154 /* ContentView.swift */; };
 		A0AAACB92848B1C900E80154 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0AAACB82848B1C900E80154 /* Assets.xcassets */; };
 		A0AAACBC2848B1C900E80154 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0AAACBB2848B1C900E80154 /* Preview Assets.xcassets */; };
+		A0AAACC42848DC4300E80154 /* DownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0AAACC32848DC4300E80154 /* DownloadManager.swift */; };
+		A0AAACC62848DF1E00E80154 /* SynchronizedArray.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0AAACC52848DF1E00E80154 /* SynchronizedArray.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +21,9 @@
 		A0AAACB62848B1C400E80154 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A0AAACB82848B1C900E80154 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A0AAACBB2848B1C900E80154 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		A0AAACC22848B47700E80154 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		A0AAACC32848DC4300E80154 /* DownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadManager.swift; sourceTree = "<group>"; };
+		A0AAACC52848DF1E00E80154 /* SynchronizedArray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SynchronizedArray.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,10 +56,13 @@
 		A0AAACB32848B1C400E80154 /* BGTest */ = {
 			isa = PBXGroup;
 			children = (
+				A0AAACC22848B47700E80154 /* Info.plist */,
 				A0AAACB42848B1C400E80154 /* BGTestApp.swift */,
 				A0AAACB62848B1C400E80154 /* ContentView.swift */,
 				A0AAACB82848B1C900E80154 /* Assets.xcassets */,
 				A0AAACBA2848B1C900E80154 /* Preview Content */,
+				A0AAACC32848DC4300E80154 /* DownloadManager.swift */,
+				A0AAACC52848DF1E00E80154 /* SynchronizedArray.swift */,
 			);
 			path = BGTest;
 			sourceTree = "<group>";
@@ -138,6 +146,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A0AAACB72848B1C400E80154 /* ContentView.swift in Sources */,
+				A0AAACC62848DF1E00E80154 /* SynchronizedArray.swift in Sources */,
+				A0AAACC42848DC4300E80154 /* DownloadManager.swift in Sources */,
 				A0AAACB52848B1C400E80154 /* BGTestApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -270,6 +280,7 @@
 				DEVELOPMENT_TEAM = P8C49CPC4X;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BGTest/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -299,6 +310,7 @@
 				DEVELOPMENT_TEAM = P8C49CPC4X;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BGTest/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
