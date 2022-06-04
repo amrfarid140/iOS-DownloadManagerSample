@@ -47,33 +47,23 @@ class XYZ : DownloadManagerDelegate, ObservableObject {
 	}
 	
 	func onRequestFailed(request: DownloadRequest, error: Error) {
-		requests = requests.map { existingRequest in
-			if existingRequest.request.fileName == request.fileName {
-				return DownloadRequestWrapper(id: nil, request: existingRequest.request, state: .errored)
-			} else {
-				return existingRequest
-			}
-		}
+		updateRequests(request, state: .errored)
 	}
 	
 	func onRequestStarted(request: DownloadRequest) {
-		requests = requests.map { existingRequest in
-			if existingRequest.request.fileName == request.fileName {
-				return DownloadRequestWrapper(id: nil, request: existingRequest.request, state: .started)
-			} else {
-				return existingRequest
-			}
-		}
+		updateRequests(request, state: .started)
 	}
 	
 	func onRequestFinished(request: DownloadRequest) {
-		requests = requests.map { existingRequest in
-			if existingRequest.request.fileName == request.fileName {
-				return DownloadRequestWrapper(id: nil, request: existingRequest.request, state: .finished)
-			} else {
-				return existingRequest
-			}
+		updateRequests(request, state: .finished)
+	}
+	
+	private func updateRequests(_ request: DownloadRequest, state: DownloadState) {
+		let itemIndex = requests.firstIndex(where: { $0.request.fileName == request.fileName })
+		if let itemIndex = itemIndex {
+			requests.remove(at: itemIndex)
 		}
+		requests.append(DownloadRequestWrapper(id: nil, request: request, state: state))
 	}
 	
 	func getRequestState(name: String) -> DownloadState {
@@ -85,64 +75,52 @@ class XYZ : DownloadManagerDelegate, ObservableObject {
 }
 
 struct ContentView: View {
-	@State var response: CharacterDataWrapper? = nil
-	@State var isError: Bool = false
-	@ObservedObject var xyz: XYZ
-	init(xyz: XYZ) {
-		self.xyz = xyz
-	}
+	@State var items: [String] = []
+	@StateObject var xyz: XYZ = XYZ()
+	
 	var body: some View {
 		ZStack {
-			if isError {
-				Text("error")
-			}
-			if response == nil {
-				Text("loading")
-			}
-			
-			if response != nil {
-				VStack {
-					ScrollView {
-						LazyVStack(alignment: .leading) {
-							ForEach(response!.data.results, id: \.name) { character in
-								HStack {
-									Text(character.name)
-									Spacer()
-									switch xyz.getRequestState(name: character.name) {
-									case.queueed:
-										Text("queueed")
-									case .finished:
-										Text("finished")
-									case .started:
-										Text("started")
-									case .errored:
-										Text("errored")
-										
-									}
-								}.padding()
-							}
+			VStack {
+				ScrollView {
+					LazyVStack(alignment: .leading) {
+						ForEach(items, id: \.self) { item in
+							HStack {
+								Text(item)
+								Spacer()
+								let state = xyz.requests.first(where: { $0.request.fileName == item })?.state
+								switch state {
+								case .finished:
+									Text("finished")
+								case .started:
+									Text("started")
+								case .errored:
+									Text("errored")
+								default:
+									Text("queueed")
+								}
+							}.padding()
 						}
 					}
-					Button("Start Download") {
-						let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-						let requests = response!.data.results.map { character in
-							DownloadRequest(
-								url: URL(string: "https://assets.pippa.io/shows/609e4b3069be6d6524986cee/1621410644716-c0101be2c3d5fd99355ce551a7e17497.mp3")!,
-								fileName: character.name,
-								storageLocaion: url.appendingPathComponent("\(character.name)")
-							)
-						}
-						DownloadManager.shared.enqueue(requests: requests)
-					}.buttonStyle(.borderedProminent)
 				}
+				Button("Start Download") {
+					let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+					let requests = items.map { item in
+						DownloadRequest(
+							url: URL(string: "https://assets.pippa.io/shows/609e4b3069be6d6524986cee/1621410644716-c0101be2c3d5fd99355ce551a7e17497.mp3")!,
+							fileName: item,
+							storageLocaion: url.appendingPathComponent("\(item)")
+						)
+					}
+					DownloadManager.shared.enqueue(requests: requests)
+				}.buttonStyle(.borderedProminent)
+			}
+		}
+		.onAppear {
+			DownloadManager.shared.addDelegate(xyz)
+			for index in 1 ..< 101 {
+				items.append("Item-\(index)")
 			}
 		}
 		.scenePadding()
-		.task {
-			let (data, _) = try! await URLSession.shared.data(from: URL(string: "https://gateway.marvel.com/v1/public/characters?ts=\(timestamp)&hash=\(hash)&apikey=\(publicKey)&limit=100")!)
-			
-			let decoder = JSONDecoder()
-			response = try? decoder.decode(CharacterDataWrapper.self, from: data)
-		}
 	}
 }

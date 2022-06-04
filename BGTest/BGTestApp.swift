@@ -14,9 +14,6 @@ struct BGTestApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(xyz: xyz)
-				.onAppear {
-					DownloadManager.shared.addDelegate(xyz)
-				}
         }
     }
 }
