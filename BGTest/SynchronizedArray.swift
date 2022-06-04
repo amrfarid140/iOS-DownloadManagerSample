@@ -35,6 +35,10 @@ class SynchronizedArray<T : Codable> {
 	func append(_ newElement: T) {
 		writer { $0.append(newElement) }
 	}
+	
+	func append(contentsOf: [T]) {
+		writer { $0.append(contentsOf: contentsOf) }
+	}
 
 	func remove(at index: Int) {
 		writer { $0.remove(at: index) }

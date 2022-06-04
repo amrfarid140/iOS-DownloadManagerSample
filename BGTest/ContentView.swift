@@ -40,50 +40,45 @@ struct CharacterImage : Codable {
 
 class XYZ : DownloadManagerDelegate, ObservableObject {
 	
-	@Published var startedRequests: [DownloadRequest] = []
-	@Published var failedRequests: [DownloadRequest] = []
-	@Published var finishedRequests: [DownloadRequest] = []
+	@Published var requests: [DownloadRequestWrapper] = []
 	
 	init() {
-		let queue = DownloadManager.shared.getQueue()
-		startedRequests = queue.filter({ it in
-			it.state == .started
-		}).map({ it in
-			it.request
-		})
-		failedRequests = queue.filter({ it in
-			it.state == .errored
-		}).map({ it in
-			it.request
-		})
-		finishedRequests = queue.filter({ it in
-			it.state == .finished
-		}).map({ it in
-			it.request
-		})
+		requests = DownloadManager.shared.getAll()
 	}
 	
 	func onRequestFailed(request: DownloadRequest, error: Error) {
-		failedRequests.append(request)
+		requests = requests.map { existingRequest in
+			if existingRequest.request.fileName == request.fileName {
+				return DownloadRequestWrapper(id: nil, request: existingRequest.request, state: .errored)
+			} else {
+				return existingRequest
+			}
+		}
 	}
 	
 	func onRequestStarted(request: DownloadRequest) {
-		startedRequests.append(request)
+		requests = requests.map { existingRequest in
+			if existingRequest.request.fileName == request.fileName {
+				return DownloadRequestWrapper(id: nil, request: existingRequest.request, state: .started)
+			} else {
+				return existingRequest
+			}
+		}
 	}
 	
 	func onRequestFinished(request: DownloadRequest) {
-		finishedRequests.append(request)
+		requests = requests.map { existingRequest in
+			if existingRequest.request.fileName == request.fileName {
+				return DownloadRequestWrapper(id: nil, request: existingRequest.request, state: .finished)
+			} else {
+				return existingRequest
+			}
+		}
 	}
 	
 	func getRequestState(name: String) -> DownloadState {
-		if startedRequests.firstIndex(where: { request in request.fileName == name }) != nil {
-			return .started
-		}
-		if failedRequests.firstIndex(where: { request in request.fileName == name }) != nil {
-			return .errored
-		}
-		if finishedRequests.firstIndex(where: { request in request.fileName == name }) != nil {
-			return .finished
+		if let request = requests.first(where: { request in request.request.fileName == name }) {
+			return request.state
 		}
 		return .queueed
 	}
@@ -130,15 +125,14 @@ struct ContentView: View {
 					}
 					Button("Start Download") {
 						let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-						response!.data.results.forEach { character in
-							DownloadManager.shared.enqueue(
-								request: DownloadRequest(
-									url: URL(string: "https://assets.pippa.io/shows/609e4b3069be6d6524986cee/1621410644716-c0101be2c3d5fd99355ce551a7e17497.mp3")!,
-									fileName: character.name,
-									storageLocaion: url.appendingPathComponent("\(character.name)")
-								)
+						let requests = response!.data.results.map { character in
+							DownloadRequest(
+								url: URL(string: "https://assets.pippa.io/shows/609e4b3069be6d6524986cee/1621410644716-c0101be2c3d5fd99355ce551a7e17497.mp3")!,
+								fileName: character.name,
+								storageLocaion: url.appendingPathComponent("\(character.name)")
 							)
 						}
+						DownloadManager.shared.enqueue(requests: requests)
 					}.buttonStyle(.borderedProminent)
 				}
 			}
