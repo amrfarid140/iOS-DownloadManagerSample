@@ -44,13 +44,13 @@ class DownloadManagerURLSessionDownloadDelegate: NSObject, URLSessionDownloadDel
 	
 	func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
 		if let error = error {
-			let itemIndex = DownloadManager.shared.started.reader { array in
+			let itemIndex = DownloadManager.shared.queue.reader { array in
 				array.firstIndex { $0.id == task.taskIdentifier }
 			}!
-			let item = DownloadManager.shared.started[itemIndex]
+			let item = DownloadManager.shared.queue[itemIndex]
 			let newItem = DownloadRequestWrapper(id: item.id, request: item.request, state: .errored)
-			DownloadManager.shared.started.remove(at: itemIndex)
-			DownloadManager.shared.failed.append(newItem)
+			DownloadManager.shared.queue.remove(at: itemIndex)
+			DownloadManager.shared.queue.append(newItem)
 			DownloadManager.shared.delegates.forEach { delegate in
 				DispatchQueue.main.async {
 					delegate.onRequestFailed(request: item.request, error: error)
@@ -61,18 +61,18 @@ class DownloadManagerURLSessionDownloadDelegate: NSObject, URLSessionDownloadDel
 	}
 	
 	func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-		let itemIndex = DownloadManager.shared.started.reader { array in
+		let itemIndex = DownloadManager.shared.queue.reader { array in
 			array.firstIndex { $0.id == downloadTask.taskIdentifier }
 		}!
 		
-		let item = DownloadManager.shared.started[itemIndex]
+		let item = DownloadManager.shared.queue[itemIndex]
 		var newItem = DownloadRequestWrapper(id: item.id, request: item.request, state: .started)
 		newItem.progress = DownloadProgress(downloadedBytes: totalBytesWritten, totalBytes: totalBytesExpectedToWrite)
-		DownloadManager.shared.started.writer { array in
+		DownloadManager.shared.queue.writer { array in
 			array.remove(at: itemIndex)
 			array.insert(newItem, at: itemIndex)
 		}
-		if item.state == .queueed {
+		if item.progress == nil {
 			DownloadManager.shared.delegates.forEach { delegate in
 				DispatchQueue.main.async {
 					delegate.onRequestStarted(request: item.request)
@@ -89,14 +89,14 @@ class DownloadManagerURLSessionDownloadDelegate: NSObject, URLSessionDownloadDel
 	}
 	
 	func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-		let itemIndex = DownloadManager.shared.started.reader { array in
+		let itemIndex = DownloadManager.shared.queue.reader { array in
 			array.firstIndex { $0.id == downloadTask.taskIdentifier }
 		}!
-		let item = DownloadManager.shared.started[itemIndex]
+		let item = DownloadManager.shared.queue[itemIndex]
 		let newItem = DownloadRequestWrapper(id: item.id, request: item.request, state: .finished)
 		try! FileManager.default.moveItem(at: location, to: item.request.storageLocaion)
-		DownloadManager.shared.started.remove(at: itemIndex)
-		DownloadManager.shared.finished.append(newItem)
+		DownloadManager.shared.queue.remove(at: itemIndex)
+		DownloadManager.shared.queue.append(newItem)
 		print("Item downloaded and moved")
 		DispatchQueue.main.async {
 			DownloadManager.shared.delegates.forEach { $0.onRequestFinished(request: item.request) }
@@ -106,24 +106,29 @@ class DownloadManagerURLSessionDownloadDelegate: NSObject, URLSessionDownloadDel
 	
 	private func refillTasks() {
 		let urlSession = DownloadManager.shared.urlSession
-		if DownloadManager.shared.started.count == 0 {
+		let startedCount = DownloadManager.shared.queue.reader { array in
+			array.filter { $0.state == .started }
+		}
+		
+		if startedCount.count == 0 {
 			let toStart = DownloadManager.shared.queue.reader { array in
-				array.prefix(DownloadManager.shared.downloadBatchSize)
+				array.filter({ wrapper in
+					wrapper.state == .queueed
+				}).prefix(DownloadManager.shared.downloadBatchSize)
 			}
 			toStart.forEach { wrapper in
-				DownloadManager.shared.started.writer { startedArray in
+				DownloadManager.shared.queue.writer { queueArray in
 					let task = urlSession.downloadTask(with: wrapper.request.url)
 					task.priority = URLSessionTask.highPriority
-					startedArray.append(DownloadRequestWrapper(id: task.taskIdentifier, request: wrapper.request, state: .queueed))
-					task.resume()
-					DownloadManager.shared.queue.writer { queueArray in
-						if let index = queueArray.firstIndex(where: { $0.request.url == wrapper.request.url }) {
-							queueArray.remove(at: index)
-						}
+					queueArray.removeAll { item in
+						item.request.fileName == wrapper.request.fileName
 					}
+					queueArray.append(DownloadRequestWrapper(id: task.taskIdentifier, request: wrapper.request, state: .started))
+					task.resume()
 				}
 			}
 		}
+		
 	}
 	
 	func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
@@ -138,10 +143,7 @@ class DownloadManagerURLSessionDownloadDelegate: NSObject, URLSessionDownloadDel
 class DownloadManager : NSObject {
 	static let shared: DownloadManager = DownloadManager()
 	var downloadBatchSize = 20
-	fileprivate var failed: SynchronizedArray<DownloadRequestWrapper> = SynchronizedArray("download_queue")
 	fileprivate var queue: SynchronizedArray<DownloadRequestWrapper> = SynchronizedArray("download_queue")
-	fileprivate var started: SynchronizedArray<DownloadRequestWrapper> = SynchronizedArray("started_downloads")
-	fileprivate var finished: SynchronizedArray<DownloadRequestWrapper> = SynchronizedArray("finished_downloads")
 	fileprivate let urlSession: URLSession
 	fileprivate let operationQueue = OperationQueue()
 	fileprivate var delegates: [DownloadManagerDelegate] = []
@@ -155,17 +157,16 @@ class DownloadManager : NSObject {
 		super.init()
 		
 		// Restart any item that hasn't been finished when the app went was closed
-		if (started.count != 0) {
-			started.replace { item in
-				if (item.state != .finished) {
-					let task = self.urlSession.downloadTask(with: item.request.url)
-					task.resume()
-					return DownloadRequestWrapper(id: task.taskIdentifier, request: item.request, state: .queueed)
-				} else {
-					return item
-				}
-			}
-		}
+		//		queue.replace { item in
+		//			if (item.state != .finished) {
+		//				let task = self.urlSession.downloadTask(with: item.request.url)
+		//				task.resume()
+		//				return DownloadRequestWrapper(id: task.taskIdentifier, request: item.request, state: .queueed)
+		//			} else {
+		//				return item
+		//			}
+		//		}
+		
 	}
 	
 	func addDelegate(_ delegate: DownloadManagerDelegate) {
@@ -173,35 +174,32 @@ class DownloadManager : NSObject {
 	}
 	
 	func enqueue(requests: [DownloadRequest]) {
-		if started.count == 0 {
-			let chunks = requests.chunked(into: downloadBatchSize)
-			chunks.first?.forEach({ request in
-				started.asyncWriter { array in
-					let task = self.urlSession.downloadTask(with: request.url)
-					task.priority = URLSessionTask.highPriority
-					array.append(DownloadRequestWrapper(id: task.taskIdentifier, request: request, state: .queueed))
-					task.resume()
+		urlSession.getAllTasks { [self] tasks in
+			if tasks.count == 0 {
+				let chunks = requests.chunked(into: downloadBatchSize)
+				chunks.first?.forEach({ request in
+					queue.asyncWriter { array in
+						let task = self.urlSession.downloadTask(with: request.url)
+						task.priority = URLSessionTask.highPriority
+						array.append(DownloadRequestWrapper(id: task.taskIdentifier, request: request, state: .started))
+						task.resume()
+					}
+				})
+				chunks.suffix(chunks.count - 1).forEach { chunk in
+					queue.append(contentsOf: chunk.map({ request in
+						DownloadRequestWrapper(id: nil, request: request, state: .queueed)
+					}))
 				}
-			})
-			chunks.suffix(chunks.count - 1).forEach { chunk in
-				queue.append(contentsOf: chunk.map({ request in
+			} else {
+				queue.append(contentsOf: requests.map({ request in
 					DownloadRequestWrapper(id: nil, request: request, state: .queueed)
 				}))
 			}
-		} else {
-			queue.append(contentsOf: requests.map({ request in
-				DownloadRequestWrapper(id: nil, request: request, state: .queueed)
-			}))
 		}
 	}
 	
 	func getAll() -> [DownloadRequestWrapper] {
-		var all: [DownloadRequestWrapper] = []
-		all.append(contentsOf: queue.array)
-		all.append(contentsOf: started.array)
-		all.append(contentsOf: finished.array)
-		all.append(contentsOf: failed.array)
-		return all
+		return queue.reader { array in array }
 	}
 }
 
