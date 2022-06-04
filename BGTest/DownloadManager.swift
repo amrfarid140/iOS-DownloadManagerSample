@@ -108,15 +108,15 @@ class DownloadManagerURLSessionDownloadDelegate: NSObject, URLSessionDownloadDel
 		let urlSession = DownloadManager.shared.urlSession
 		if DownloadManager.shared.started.count == 0 {
 			let toStart = DownloadManager.shared.queue.reader { array in
-				array.prefix(20)
+				array.prefix(DownloadManager.shared.downloadBatchSize)
 			}
 			toStart.forEach { wrapper in
-				DownloadManager.shared.started.asyncWriter { startedArray in
+				DownloadManager.shared.started.writer { startedArray in
 					let task = urlSession.downloadTask(with: wrapper.request.url)
 					task.priority = URLSessionTask.highPriority
 					startedArray.append(DownloadRequestWrapper(id: task.taskIdentifier, request: wrapper.request, state: .queueed))
 					task.resume()
-					DownloadManager.shared.queue.asyncWriter { queueArray in
+					DownloadManager.shared.queue.writer { queueArray in
 						if let index = queueArray.firstIndex(where: { $0.request.url == wrapper.request.url }) {
 							queueArray.remove(at: index)
 						}
@@ -137,6 +137,7 @@ class DownloadManagerURLSessionDownloadDelegate: NSObject, URLSessionDownloadDel
 
 class DownloadManager : NSObject {
 	static let shared: DownloadManager = DownloadManager()
+	var downloadBatchSize = 20
 	fileprivate var failed: SynchronizedArray<DownloadRequestWrapper> = SynchronizedArray("download_queue")
 	fileprivate var queue: SynchronizedArray<DownloadRequestWrapper> = SynchronizedArray("download_queue")
 	fileprivate var started: SynchronizedArray<DownloadRequestWrapper> = SynchronizedArray("started_downloads")
@@ -150,8 +151,7 @@ class DownloadManager : NSObject {
 		let config = URLSessionConfiguration.background(withIdentifier: "download_queue")
 		config.sessionSendsLaunchEvents = true
 		config.isDiscretionary = false
-		urlSession = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: operationQueue)
-		operationQueue.maxConcurrentOperationCount = 1
+		urlSession = URLSession(configuration: config, delegate: sessionDelegate, delegateQueue: nil)
 		super.init()
 		
 		// Restart any item that hasn't been finished when the app went was closed
@@ -174,7 +174,7 @@ class DownloadManager : NSObject {
 	
 	func enqueue(requests: [DownloadRequest]) {
 		if started.count == 0 {
-			let chunks = requests.chunked(into: 20)
+			let chunks = requests.chunked(into: downloadBatchSize)
 			chunks.first?.forEach({ request in
 				started.asyncWriter { array in
 					let task = self.urlSession.downloadTask(with: request.url)
