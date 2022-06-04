@@ -58,12 +58,18 @@ class XYZ : DownloadManagerDelegate, ObservableObject {
 		updateRequests(request, state: .finished)
 	}
 	
-	private func updateRequests(_ request: DownloadRequest, state: DownloadState) {
+	func onDownloadProgress(request: DownloadRequest, progress: DownloadProgress) {
+		updateRequests(request, state: .started, progress: progress)
+	}
+	
+	private func updateRequests(_ request: DownloadRequest, state: DownloadState, progress: DownloadProgress? = nil) {
 		let itemIndex = requests.firstIndex(where: { $0.request.fileName == request.fileName })
 		if let itemIndex = itemIndex {
 			requests.remove(at: itemIndex)
 		}
-		requests.append(DownloadRequestWrapper(id: nil, request: request, state: state))
+		var newRequest = DownloadRequestWrapper(id: nil, request: request, state: state)
+		newRequest.progress = progress
+		requests.append(newRequest)
 	}
 	
 	func getRequestState(name: String) -> DownloadState {
@@ -87,16 +93,18 @@ struct ContentView: View {
 							HStack {
 								Text(item)
 								Spacer()
-								let state = xyz.requests.first(where: { $0.request.fileName == item })?.state
+								let request = xyz.requests.first(where: { $0.request.fileName == item })
+								let state = request?.state
+								let progress = Double(request?.progress?.downloadedBytes ?? 0) / Double(request?.progress?.totalBytes ?? 1)
 								switch state {
 								case .finished:
-									Text("finished")
+									Text("Downloaded").foregroundColor(Color.green)
 								case .started:
-									Text("started")
+									Text(String(format: "Downloading (%.2f%%)", progress * 100)).foregroundColor(Color.primary)
 								case .errored:
-									Text("errored")
+									Text("Failed").foregroundColor(Color.red)
 								default:
-									Text("queueed")
+									Text("Waiting...")
 								}
 							}.padding()
 						}
