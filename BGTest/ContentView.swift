@@ -6,20 +6,6 @@
 //
 import Foundation
 import SwiftUI
-import CryptoKit
-
-func MD5(string: String) -> String {
-	let digest = Insecure.MD5.hash(data: string.data(using: .utf8) ?? Data())
-	
-	return digest.map {
-		String(format: "%02hhx", $0)
-	}.joined()
-}
-
-let publicKey = "f8370e1f339c2171cc909402d300ea44"
-let privateKey = "f3ec46ac173c8f94d67c261e58f53f90b9b750bc"
-let timestamp = Date().timeIntervalSince1970
-let hash = MD5(string: "\(timestamp)\(privateKey)\(publicKey)")
 
 struct CharacterDataWrapper : Codable {
 	let data : CharacterDataContainer
@@ -81,7 +67,6 @@ class XYZ : DownloadManagerDelegate, ObservableObject {
 }
 
 struct ContentView: View {
-	@State var items: [String] = []
 	@StateObject var xyz: XYZ = XYZ()
 	
 	var body: some View {
@@ -89,7 +74,7 @@ struct ContentView: View {
 			VStack {
 				ScrollView {
 					LazyVStack(alignment: .leading) {
-						ForEach(items, id: \.self) { item in
+						ForEach(Edition.links, id: \.self) { item in
 							HStack {
 								Text(item)
 								Spacer()
@@ -112,9 +97,9 @@ struct ContentView: View {
 				}
 				Button("Start Download") {
 					let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-					let requests = items.map { item in
+                    let requests = Edition.links.map { item in
 						DownloadRequest(
-							url: URL(string: "https://assets.pippa.io/shows/609e4b3069be6d6524986cee/1621410644716-c0101be2c3d5fd99355ce551a7e17497.mp3")!,
+							url: URL(string: item)!,
 							fileName: item,
 							storageLocaion: url.appendingPathComponent("\(item)")
 						)
@@ -125,9 +110,6 @@ struct ContentView: View {
 		}
 		.onAppear {
 			DownloadManager.shared.addDelegate(xyz)
-			for index in 1 ..< 101 {
-				items.append("Item-\(index)")
-			}
 		}
 		.scenePadding()
 	}
