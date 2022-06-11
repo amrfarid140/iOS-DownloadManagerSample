@@ -128,7 +128,14 @@ class DownloadManagerURLSessionDownloadDelegate: NSObject, URLSessionDownloadDel
 				}
 			}
 		}
-		
+		let allFinised = DownloadManager.shared.queue.reader { array in
+			array.allSatisfy { wrapper in
+				wrapper.state == .finished
+			}
+		}
+		if (allFinised) {
+			UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "end_time")
+		}
 	}
 	
 	func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
@@ -142,7 +149,7 @@ class DownloadManagerURLSessionDownloadDelegate: NSObject, URLSessionDownloadDel
 
 class DownloadManager : NSObject {
 	static let shared: DownloadManager = DownloadManager()
-	var downloadBatchSize = 20
+	var downloadBatchSize = 50
 	fileprivate var queue: SynchronizedArray<DownloadRequestWrapper> = SynchronizedArray("download_queue")
 	fileprivate let urlSession: URLSession
 	fileprivate let operationQueue = OperationQueue()

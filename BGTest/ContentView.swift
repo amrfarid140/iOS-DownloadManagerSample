@@ -66,19 +66,43 @@ class XYZ : DownloadManagerDelegate, ObservableObject {
 	}
 }
 
+struct Item {
+	let filename: String
+	let url: URL
+}
+
 struct ContentView: View {
 	@StateObject var xyz: XYZ = XYZ()
-	
+	@State var timeTaken: String = ""
+	let items: [Item] = Edition.links.map { link in
+		let url = URL(string: link)!
+		return Item(filename: url.lastPathComponent, url: url)
+	}
 	var body: some View {
-		ZStack {
-			VStack {
+		let hasFinished = items.map { item in
+			xyz.requests.first(where: { $0.request.fileName == item.filename })?.state == .finished
+		}.reduce(true) { bool, item in
+			bool && item
+		}
+		
+		return ZStack {
+			VStack(alignment: .leading) {
+				if (hasFinished) {
+					let startTimeDouble = UserDefaults.standard.double(forKey: "start_time")
+					let endTimeDouble = UserDefaults.standard.double(forKey: "end_time")
+					let startTime = Date(timeIntervalSince1970: startTimeDouble)
+					let endTime = Date(timeIntervalSince1970: endTimeDouble)
+					let (_ , _ , hour, minute, second) = endTime - startTime
+					Text("Download Time: \(hour!) h: \(minute!) m: \(second!) s")
+				}
+				
 				ScrollView {
 					LazyVStack(alignment: .leading) {
-						ForEach(Edition.links, id: \.self) { item in
+						ForEach(items, id: \.filename) { item in
 							HStack {
-								Text(item)
+								Text(item.filename)
 								Spacer()
-								let request = xyz.requests.first(where: { $0.request.fileName == item })
+								let request = xyz.requests.first(where: { $0.request.fileName == item.filename })
 								let state = request?.state
 								let progress = Double(request?.progress?.downloadedBytes ?? 0) / Double(request?.progress?.totalBytes ?? 1)
 								switch state {
@@ -97,14 +121,15 @@ struct ContentView: View {
 				}
 				Button("Start Download") {
 					let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-                    let requests = Edition.links.map { item in
+                    let requests = items.map { item in
 						DownloadRequest(
-							url: URL(string: item)!,
-							fileName: item,
-							storageLocaion: url.appendingPathComponent("\(item)")
+							url: item.url,
+							fileName: item.filename,
+							storageLocaion: url.appendingPathComponent(item.filename)
 						)
 					}
 					DownloadManager.shared.enqueue(requests: requests)
+					UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "start_time")
 				}.buttonStyle(.borderedProminent)
 			}
 		}
@@ -113,4 +138,18 @@ struct ContentView: View {
 		}
 		.scenePadding()
 	}
+}
+
+extension Date {
+
+	static func -(recent: Date, previous: Date) -> (month: Int?, day: Int?, hour: Int?, minute: Int?, second: Int?) {
+		let day = Calendar.current.dateComponents([.day], from: previous, to: recent).day
+		let month = Calendar.current.dateComponents([.month], from: previous, to: recent).month
+		let hour = Calendar.current.dateComponents([.hour], from: previous, to: recent).hour
+		let minute = Calendar.current.dateComponents([.minute], from: previous, to: recent).minute
+		let second = Calendar.current.dateComponents([.second], from: previous, to: recent).second
+
+		return (month: month, day: day, hour: hour, minute: minute, second: second)
+	}
+
 }
